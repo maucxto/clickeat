@@ -1,563 +1,1120 @@
-import React, { useState, useRef, createContext, useContext, useEffect } from 'react';
-import { Menu, X, ShoppingCart, Plus, Minus, ChevronLeft, ChevronRight, Trash2, CreditCard, DollarSign, Smartphone, Check, Clock, Phone, Mail, MapPin } from 'lucide-react';
-
-// ============= CONTEXTO DEL CARRITO =============
-const CartContext = createContext();
-
-const CartProvider = ({ children }) => {
-  const [cart, setCart] = useState([]);
-  const [isOpen, setIsOpen] = useState(false);
-
-  const addToCart = (item, quantity = 1, options = {}) => {
-    const cartItemId = `${item.id}-${JSON.stringify(options)}`;
-    
-    setCart(prev => {
-      const existingIndex = prev.findIndex(i => i.cartItemId === cartItemId);
-      if (existingIndex > -1) {
-        const newCart = [...prev];
-        newCart[existingIndex].quantity = Math.min(8, newCart[existingIndex].quantity + quantity);
-        return newCart;
-      }
-      return [...prev, { ...item, cartItemId, quantity, options }];
-    });
-  };
-
-  const removeFromCart = (cartItemId) => {
-    setCart(prev => prev.filter(i => i.cartItemId !== cartItemId));
-  };
-
-  const updateQuantity = (cartItemId, newQty) => {
-    if (newQty < 1) return removeFromCart(cartItemId);
-    setCart(prev => prev.map(i => i.cartItemId === cartItemId ? { ...i, quantity: Math.min(8, newQty) } : i));
-  };
-
-  const clearCart = () => setCart([]);
-
-  const getTotal = () => cart.reduce((sum, item) => {
-    const price = item.options?.wineOption === 'glass' ? item.priceGlass : item.price;
-    return sum + (price * item.quantity);
-  }, 0);
-
-  const getTotalItems = () => cart.reduce((sum, item) => sum + item.quantity, 0);
-
-  return (
-    <CartContext.Provider value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart, getTotal, getTotalItems, isOpen, setIsOpen }}>
-      {children}
-    </CartContext.Provider>
-  );
-};
-
-const useCart = () => useContext(CartContext);
-
-// ============= DATOS DEL MENÚ =============
-const menuData = {
-  ENTRADAS: {
-    title: 'ENTRADAS',
-    icon: '🥑',
-    items: [
-      { id: 'e1', name: 'GUACAMOLE', description: 'Aguacate fresco con jitomate, cebolla y cilantro', price: 88, prepTime: 5, tags: ['vegetariano'] },
-      { id: 'e2', name: 'CALDO DE HONGOS', description: 'Como recién salido de la montaña, pica un poco', price: 68, prepTime: 10, tags: ['picante'] },
-      { id: 'e3', name: 'TAMALITOS VERDES', description: 'Dos tamales de pollo en salsa verde, estilo oaxaqueño', price: 68, prepTime: 8, tags: ['oaxaqueño'] },
-      { id: 'e4', name: 'TACOS MIXTOS', description: 'Son de carne, pollo y hongos. Llevan salsa', price: 88, prepTime: 12, tags: ['mixto'] }
-    ]
-  },
-  PLATILLOS: {
-    title: 'PLATILLOS',
-    icon: '🍽️',
-    items: [
-      { id: 'p1', name: 'CARNE EN SU JUGO', description: 'Tierna carne de res cocida en su propio jugo con frijoles, tocino y chile', price: 148, prepTime: 20, tags: ['especial'] },
-      { id: 'p2', name: 'CHAMBARETE', description: 'Ossobuco de res cocinado lentamente en salsa pasilla', price: 188, prepTime: 25, tags: ['recomendado'] },
-      { id: 'p3', name: 'CORTE MAGRO', description: 'Pregunta por el corte del mes, acompañado de verduras al grill (300g)', price: 251, prepTime: 18, tags: ['premium'] },
-      { id: 'p4', name: 'ESTOFADO DE RES', description: 'Carne de res cocida a fuego lento (12hrs) con verduras en un rico caldo', price: 168, prepTime: 15, tags: ['tradicional'] },
-      { id: 'p5', name: 'FAJITAS DE POLLO', description: 'Tiras de pollo asadas con pimientos y cebollas', price: 148, prepTime: 15, tags: ['ligero'] },
-      { id: 'p6', name: 'TACOS DEL TROMPO', description: 'Tres tacos de sirloin, jugoso y sabroso', price: 125, prepTime: 10, tags: ['popular'] }
-    ]
-  },
-  BEBIDAS: {
-    title: 'BEBIDAS',
-    icon: '🥤',
-    items: [
-      { id: 'b1', name: 'AGUA DEL DÍA', description: 'Pregunta por el sabor del día', price: 38, prepTime: 2 },
-      { id: 'b2', name: 'AGUA MINERAL', description: 'LIMONADA | NARANJADA (Natural o mineral)', price: 38, prepTime: 3 },
-      { id: 'b3', name: 'REFRESCOS', description: 'Coca, manzana, sprite (355ml)', price: 38, prepTime: 1 },
-      { id: 'b4', name: 'CERVEZA DE BARRIL', description: 'Clara y obscura (355ml)', price: 55, prepTime: 2 }
-    ]
-  },
-  MEZCAL: {
-    title: 'MEZCAL',
-    icon: '🍶',
-    items: [
-      { id: 'm1', name: 'ESPADÍN 42%', description: 'Ejútla de Crespo, Oaxaca (Doble)', price: 98, prepTime: 2, tags: ['artesanal'] },
-      { id: 'm2', name: 'TOBALÁ', description: 'San José de Minas, Oaxaca (Doble)', price: 128, prepTime: 2, tags: ['premium'] },
-      { id: 'm3', name: 'ARROQUEÑO', description: 'Ejútla de Crespo, Oaxaca (Doble)', price: 158, prepTime: 2, tags: ['premium'] }
-    ]
-  },
-  VINO: {
-    title: 'VINO',
-    icon: '🍷',
-    items: [
-      { id: 'v1', name: 'LA CETTO SYRAH', description: 'Copa | Botella', priceGlass: 138, priceBottle: 488, price: 488, hasGlassOption: true },
-      { id: 'v2', name: 'DATUM', description: 'Copa | Botella', priceGlass: 218, priceBottle: 888, price: 888, hasGlassOption: true },
-      { id: 'v3', name: 'MATARROMERA', description: 'Botella', price: 1998, hasGlassOption: false },
-      { id: 'v4', name: 'TABLAS', description: 'Botella', price: 980, hasGlassOption: false }
-    ]
-  }
-};
-
-// ============= COMPONENTE HEADER =============
-const Header = ({ onMenuClick, onCartClick }) => {
-  const { getTotalItems } = useCart();
-
-  return (
-    <header className="sticky top-0 z-40 bg-black text-white shadow-lg">
-      <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-        <button onClick={onMenuClick} className="p-2 hover:bg-gray-800 rounded-lg lg:hidden">
-          <Menu className="w-6 h-6" />
-        </button>
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-2xl">
-            🇲🇽
-          </div>
-          <div>
-            <h1 className="text-xl md:text-2xl font-bold">PRODUCTO NACIONAL</h1>
-            <p className="text-xs text-gray-400 hidden sm:block">Comida & Bebida Nacional</p>
-          </div>
-        </div>
-        <button onClick={onCartClick} className="relative p-2 hover:bg-gray-800 rounded-lg">
-          <ShoppingCart className="w-6 h-6" />
-          {getTotalItems() > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
-              {getTotalItems()}
-            </span>
-          )}
-        </button>
-      </div>
-    </header>
-  );
-};
-
-// ============= SIDEBAR =============
-const Sidebar = ({ isOpen, onClose }) => {
-  return (
-    <>
-      {isOpen && <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={onClose} />}
-      <aside className={`fixed top-0 left-0 h-full w-80 bg-white shadow-2xl z-50 transform transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex flex-col h-full">
-          <div className="flex items-center justify-between p-6 border-b bg-black text-white">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-2xl">🇲🇽</div>
-              <div>
-                <h2 className="text-lg font-bold">PRODUCTO NACIONAL</h2>
-                <p className="text-xs text-gray-300">Menú Digital</p>
-              </div>
-            </div>
-            <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg">
-              <X className="w-6 h-6" />
-            </button>
-          </div>
-          <nav className="flex-1 overflow-y-auto p-6">
-            <div className="mb-6">
-              <h3 className="flex items-center text-sm font-semibold text-gray-700 mb-3">
-                <Clock className="w-4 h-4 mr-2" />Horarios
-              </h3>
-              <div className="space-y-1 text-sm text-gray-600">
-                <div className="flex justify-between"><span>Lunes - Jueves:</span><span>13:00 - 23:00</span></div>
-                <div className="flex justify-between"><span>Viernes - Sábado:</span><span>13:00 - 00:00</span></div>
-                <div className="flex justify-between"><span>Domingo:</span><span>Cerrado</span></div>
-              </div>
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Contacto</h3>
-              <div className="space-y-3">
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
-                  <Phone className="w-4 h-4" /><span>+52 55 1234 5678</span>
-                </div>
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
-                  <Mail className="w-4 h-4" /><span>hola@productonacional.mx</span>
-                </div>
-                <div className="flex items-start space-x-2 text-sm text-gray-600">
-                  <MapPin className="w-4 h-4 mt-0.5" /><span>CDMX, México</span>
-                </div>
-              </div>
-            </div>
-          </nav>
-        </div>
-      </aside>
-    </>
-  );
-};
-
-// ============= CATEGORY BAR =============
-const CategoryBar = ({ categories, selected, onChange }) => {
-  const scrollRef = useRef(null);
-  
-  const scroll = (dir) => {
-    scrollRef.current?.scrollBy({ left: dir === 'left' ? -200 : 200, behavior: 'smooth' });
-  };
-
-  return (
-    <div className="sticky top-[72px] z-30 bg-white border-b shadow-sm">
-      <div className="relative max-w-7xl mx-auto">
-        <button onClick={() => scroll('left')} className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white p-2 rounded-full shadow-lg hidden md:block">
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-        <div ref={scrollRef} className="flex overflow-x-auto scrollbar-hide px-4 md:px-12 py-3 space-x-2">
-          {categories.map(cat => {
-            const info = menuData[cat];
-            return (
-              <button
-                key={cat}
-                onClick={() => onChange(cat)}
-                className={`flex-shrink-0 px-4 py-2 rounded-full font-medium text-sm transition-all whitespace-nowrap ${
-                  selected === cat ? 'bg-black text-white shadow-lg scale-105' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                <span className="mr-2">{info.icon}</span>{info.title}
-              </button>
-            );
-          })}
-        </div>
-        <button onClick={() => scroll('right')} className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white p-2 rounded-full shadow-lg hidden md:block">
-          <ChevronRight className="w-5 h-5" />
-        </button>
-      </div>
-    </div>
-  );
-};
-
-// ============= MENU ITEM =============
-const MenuItem = ({ item }) => {
-  const [showModal, setShowModal] = useState(false);
-  const { addToCart } = useCart();
-
-  const handleQuickAdd = (e) => {
-    e.stopPropagation();
-    if (item.hasGlassOption) {
-      setShowModal(true);
-    } else {
-      addToCart(item, 1);
-    }
-  };
-
-  return (
-    <>
-      <div onClick={() => setShowModal(true)} className="bg-white rounded-2xl shadow-lg overflow-hidden cursor-pointer transform transition-all duration-300 hover:scale-105 hover:shadow-2xl flex flex-col h-full">
-        <div className="relative h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-          <span className="text-6xl">{menuData[Object.keys(menuData).find(k => menuData[k].items?.includes(item))].icon}</span>
-          {item.tags && (
-            <div className="absolute top-2 left-2 flex flex-wrap gap-1">
-              {item.tags.slice(0, 2).map(tag => (
-                <span key={tag} className="px-2 py-1 bg-black/70 text-white text-xs rounded-full">{tag}</span>
-              ))}
-            </div>
-          )}
-          <button onClick={handleQuickAdd} className="absolute bottom-2 right-2 bg-black text-white p-3 rounded-full shadow-lg hover:bg-gray-800 transition-all hover:scale-110">
-            <Plus className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="p-4 flex flex-col flex-1">
-          <h3 className="text-lg font-bold text-gray-900 mb-2">{item.name}</h3>
-          <p className="text-sm text-gray-600 mb-3 flex-1">{item.description}</p>
-          <div className="flex items-center justify-between mt-auto">
-            {item.hasGlassOption ? (
-              <div className="text-sm">
-                <div><span className="text-gray-500">Copa:</span> <span className="font-bold">${item.priceGlass}</span></div>
-                <div><span className="text-gray-500">Botella:</span> <span className="font-bold">${item.priceBottle}</span></div>
-              </div>
-            ) : (
-              <span className="text-2xl font-bold">${item.price}</span>
-            )}
-            {item.prepTime && <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">~{item.prepTime} min</span>}
-          </div>
-        </div>
-      </div>
-
-      {showModal && <ItemModal item={item} onClose={() => setShowModal(false)} />}
-    </>
-  );
-};
-
-// ============= MODAL DE ITEM =============
-const ItemModal = ({ item, onClose }) => {
-  const [quantity, setQuantity] = useState(1);
-  const [wineOption, setWineOption] = useState(item.hasGlassOption ? 'glass' : null);
-  const [comment, setComment] = useState('');
-  const { addToCart } = useCart();
-
-  const handleAdd = () => {
-    addToCart(item, quantity, { wineOption, comment });
-    onClose();
-  };
-
-  const price = wineOption === 'glass' ? item.priceGlass : item.price;
-
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="p-6">
-          <div className="flex justify-between items-start mb-4">
-            <h2 className="text-2xl font-bold">{item.name}</h2>
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          <p className="text-gray-600 mb-4">{item.description}</p>
-          
-          {item.hasGlassOption && (
-            <div className="mb-4">
-              <label className="block text-sm font-semibold mb-2">Selecciona:</label>
-              <div className="flex gap-2">
-                <button onClick={() => setWineOption('glass')} className={`flex-1 py-2 px-4 rounded-lg border-2 ${wineOption === 'glass' ? 'border-black bg-black text-white' : 'border-gray-300'}`}>
-                  Copa - ${item.priceGlass}
-                </button>
-                <button onClick={() => setWineOption('bottle')} className={`flex-1 py-2 px-4 rounded-lg border-2 ${wineOption === 'bottle' ? 'border-black bg-black text-white' : 'border-gray-300'}`}>
-                  Botella - ${item.priceBottle}
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div className="mb-4">
-            <label className="block text-sm font-semibold mb-2">Cantidad:</label>
-            <div className="flex items-center justify-center space-x-4 bg-gray-100 rounded-lg p-2">
-              <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="w-10 h-10 flex items-center justify-center bg-white rounded-lg hover:bg-gray-200">
-                <Minus className="w-5 h-5" />
-              </button>
-              <span className="text-2xl font-bold w-12 text-center">{quantity}</span>
-              <button onClick={() => setQuantity(Math.min(8, quantity + 1))} className="w-10 h-10 flex items-center justify-center bg-white rounded-lg hover:bg-gray-200">
-                <Plus className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <label className="block text-sm font-semibold mb-2">Comentarios para cocina (opcional):</label>
-            <textarea
-              value={comment}
-              onChange={(e) => setComment(e.target.value.slice(0, 200))}
-              placeholder="Ej: Sin picante, término medio..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg resize-none"
-              rows="3"
-            />
-            <p className="text-xs text-gray-500 mt-1">{comment.length}/200</p>
-          </div>
-
-          <div className="flex items-center justify-between mb-4 py-4 border-t border-b">
-            <span className="text-lg font-semibold">Total:</span>
-            <span className="text-3xl font-bold">${price * quantity}</span>
-          </div>
-
-          <button onClick={handleAdd} className="w-full bg-black text-white py-4 rounded-lg font-bold hover:bg-gray-800 transition-colors">
-            Agregar al carrito
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ============= CARRITO =============
-const Cart = ({ isOpen, onClose }) => {
-  const { cart, removeFromCart, updateQuantity, getTotal, clearCart } = useCart();
-  const [showCheckout, setShowCheckout] = useState(false);
-
-  if (showCheckout) return <Checkout onBack={() => setShowCheckout(false)} />;
-
-  return (
-    <>
-      {isOpen && <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose} />}
-      <div className={`fixed top-0 right-0 h-full w-full md:w-96 bg-white shadow-2xl z-50 transform transition-transform duration-300 ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-        <div className="flex flex-col h-full">
-          <div className="flex items-center justify-between p-6 border-b">
-            <h2 className="text-xl font-bold">Tu Pedido</h2>
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
-              <X className="w-6 h-6" />
-            </button>
-          </div>
-
-          {cart.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center p-6">
-              <ShoppingCart className="w-16 h-16 text-gray-300 mb-4" />
-              <p className="text-gray-500 text-center">Tu carrito está vacío</p>
-            </div>
-          ) : (
-            <>
-              <div className="flex-1 overflow-y-auto p-4">
-                {cart.map(item => (
-                  <div key={item.cartItemId} className="bg-gray-50 rounded-lg p-4 mb-3">
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex-1">
-                        <h3 className="font-bold">{item.name}</h3>
-                        {item.options?.wineOption && (
-                          <p className="text-xs text-gray-500">{item.options.wineOption === 'glass' ? 'Copa' : 'Botella'}</p>
-                        )}
-                        {item.options?.comment && (
-                          <p className="text-xs text-gray-600 italic mt-1">"{item.options.comment}"</p>
-                        )}
-                      </div>
-                      <button onClick={() => removeFromCart(item.cartItemId)} className="text-red-500 p-1">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2 bg-white rounded-lg p-1">
-                        <button onClick={() => updateQuantity(item.cartItemId, item.quantity - 1)} className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded">
-                          <Minus className="w-4 h-4" />
-                        </button>
-                        <span className="w-8 text-center font-bold">{item.quantity}</span>
-                        <button onClick={() => updateQuantity(item.cartItemId, item.quantity + 1)} className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded">
-                          <Plus className="w-4 h-4" />
-                        </button>
-                      </div>
-                      <span className="font-bold">${(item.options?.wineOption === 'glass' ? item.priceGlass : item.price) * item.quantity}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="border-t p-6 space-y-4">
-                <button onClick={clearCart} className="text-sm text-red-500 hover:text-red-700">Vaciar carrito</button>
-                <div className="flex justify-between items-center text-xl font-bold">
-                  <span>Total:</span>
-                  <span>${getTotal()}</span>
-                </div>
-                <button onClick={() => setShowCheckout(true)} className="w-full bg-black text-white py-4 rounded-lg font-bold hover:bg-gray-800">
-                  Proceder al pago
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </>
-  );
-};
-
-// ============= CHECKOUT =============
-const Checkout = ({ onBack }) => {
-  const { getTotal, clearCart } = useCart();
-  const [step, setStep] = useState('payment');
-  const [selectedMethod, setSelectedMethod] = useState(null);
-
-  const paymentMethods = [
-    { id: 'card', name: 'Tarjeta', icon: <CreditCard className="w-6 h-6" />, desc: 'Visa, Mastercard, Amex' },
-    { id: 'cash', name: 'Efectivo', icon: <DollarSign className="w-6 h-6" />, desc: 'Paga en caja' },
-    { id: 'transfer', name: 'Transferencia', icon: <Smartphone className="w-6 h-6" />, desc: 'SPEI' }
-  ];
-
-  const handleConfirm = () => {
-    setStep('confirmed');
-    setTimeout(() => {
-      clearCart();
-      onBack();
-    }, 3000);
-  };
-
-  if (step === 'confirmed') {
-    return (
-      <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
-        <div className="text-center text-white p-8">
-          <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Check className="w-12 h-12" />
-          </div>
-          <h2 className="text-3xl font-bold mb-4">¡Pedido Confirmado!</h2>
-          <p className="text-gray-300 mb-2">Tu orden ha sido recibida</p>
-          <p className="text-sm text-gray-400">Cocina y barra han sido notificadas</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="fixed inset-0 bg-white z-50 overflow-y-auto">
-      <div className="max-w-2xl mx-auto p-6">
-        <button onClick={onBack} className="mb-6 flex items-center text-gray-600 hover:text-black">
-          <ChevronLeft className="w-5 h-5 mr-1" /> Volver al carrito
-        </button>
-
-        <h1 className="text-3xl font-bold mb-8">Checkout</h1>
-
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-lg font-semibold mb-4">Método de Pago</h2>
-            <div className="grid gap-3">
-              {paymentMethods.map(method => (
-                <button
-                  key={method.id}
-                  onClick={() => setSelectedMethod(method.id)}
-                  className={`flex items-center p-4 border-2 rounded-lg transition-all ${
-                    selectedMethod === method.id ? 'border-black bg-gray-50' : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <div className="mr-4">{method.icon}</div>
-                  <div className="flex-1 text-left">
-                    <div className="font-semibold">{method.name}</div>
-                    <div className="text-sm text-gray-500">{method.desc}</div>
-                  </div>
-                  {selectedMethod === method.id && <Check className="w-5 h-5 text-green-500" />}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="border-t pt-6">
-            <div className="bg-gray-50 rounded-lg p-6 mb-6">
-              <div className="flex justify-between text-xl font-bold">
-                <span>Total a Pagar:</span>
-                <span>${getTotal()}</span>
-              </div>
-            </div>
-
-            <button
-              onClick={handleConfirm}
-              disabled={!selectedMethod}
-              className={`w-full py-4 rounded-lg font-bold text-white transition-colors ${
-                selectedMethod ? 'bg-black hover:bg-gray-800' : 'bg-gray-300 cursor-not-allowed'
-              }`}
-            >
-              Confirmar Pedido
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ============= APP PRINCIPAL =============
-const App = () => {
-  const [selectedCategory, setSelectedCategory] = useState('ENTRADAS');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isCartOpen, setIsCartOpen] = useState(false);
-
-  const categories = Object.keys(menuData);
-
-  return (
-    <CartProvider>
-      <div className="min-h-screen bg-gray-50">
-        <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-        <Header 
-          onMenuClick={() => setIsSidebarOpen(true)} 
-          onCartClick={() => setIsCartOpen(true)}
-        />
-        <CategoryBar 
-          categories={categories}
-          selected={selectedCategory}
-          onChange={setSelectedCategory}
-        />
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Producto Nacional - Menú Digital</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide-react@latest/dist/umd/lucide-react.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
         
-        <main className="max-w-7xl mx-auto px-4 py-8">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {menuData[selectedCategory].items.map(item => (
-              <MenuItem key={item.id} item={item} />
-            ))}
-          </div>
-        </main>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #f9fafb;
+            color: #1f2937;
+        }
+        
+        /* Header */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 40;
+            background-color: #000;
+            color: white;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header-content {
+            max-width: 80rem;
+            margin: 0 auto;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .header-button {
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+        }
+        
+        .header-button:hover {
+            background-color: #374151;
+        }
+        
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .logo {
+            width: 2.5rem;
+            height: 2.5rem;
+            background-color: white;
+            border-radius: 9999px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+        
+        .title {
+            font-size: 1.25rem;
+            font-weight: bold;
+        }
+        
+        .subtitle {
+            font-size: 0.75rem;
+            color: #9ca3af;
+        }
+        
+        .cart-badge {
+            position: absolute;
+            top: -0.25rem;
+            right: -0.25rem;
+            background-color: #ef4444;
+            color: white;
+            font-size: 0.75rem;
+            width: 1.25rem;
+            height: 1.25rem;
+            border-radius: 9999px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        
+        /* Category Bar */
+        .category-bar {
+            position: sticky;
+            top: 4.5rem;
+            z-index: 30;
+            background-color: white;
+            border-bottom: 1px solid #e5e7eb;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        }
+        
+        .category-container {
+            position: relative;
+            max-width: 80rem;
+            margin: 0 auto;
+        }
+        
+        .category-scroll {
+            display: flex;
+            overflow-x: auto;
+            padding: 0 1rem;
+            gap: 0.5rem;
+            scrollbar-width: none;
+        }
+        
+        .category-scroll::-webkit-scrollbar {
+            display: none;
+        }
+        
+        .category-button {
+            flex-shrink: 0;
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            font-weight: 500;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+            white-space: nowrap;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .category-button.active {
+            background-color: #000;
+            color: white;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            transform: scale(1.05);
+        }
+        
+        .category-button.inactive {
+            background-color: #f3f4f6;
+            color: #374151;
+        }
+        
+        .category-button.inactive:hover {
+            background-color: #e5e7eb;
+        }
+        
+        /* Menu Items */
+        .main-content {
+            max-width: 80rem;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+        
+        .menu-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+        
+        @media (min-width: 640px) {
+            .menu-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (min-width: 1024px) {
+            .menu-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+        
+        .menu-item {
+            background-color: white;
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        
+        .menu-item:hover {
+            transform: scale(1.05);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+        
+        .item-image {
+            position: relative;
+            height: 12rem;
+            background: linear-gradient(to bottom right, #f3f4f6, #e5e7eb);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .item-icon {
+            font-size: 3rem;
+        }
+        
+        .item-tags {
+            position: absolute;
+            top: 0.5rem;
+            left: 0.5rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+        }
+        
+        .tag {
+            padding: 0.25rem 0.5rem;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            font-size: 0.75rem;
+            border-radius: 9999px;
+        }
+        
+        .add-button {
+            position: absolute;
+            bottom: 0.5rem;
+            right: 0.5rem;
+            background-color: #000;
+            color: white;
+            padding: 0.75rem;
+            border-radius: 9999px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .add-button:hover {
+            background-color: #374151;
+            transform: scale(1.1);
+        }
+        
+        .item-content {
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+        
+        .item-name {
+            font-size: 1.125rem;
+            font-weight: bold;
+            color: #111827;
+            margin-bottom: 0.5rem;
+        }
+        
+        .item-description {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin-bottom: 0.75rem;
+            flex: 1;
+        }
+        
+        .item-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: auto;
+        }
+        
+        .price {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .wine-prices {
+            font-size: 0.875rem;
+        }
+        
+        .wine-price {
+            margin-bottom: 0.25rem;
+        }
+        
+        .price-label {
+            color: #6b7280;
+        }
+        
+        .prep-time {
+            font-size: 0.75rem;
+            color: #6b7280;
+            background-color: #f3f4f6;
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+        }
+        
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        
+        .modal {
+            background-color: white;
+            border-radius: 1rem;
+            max-width: 32rem;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+        
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .close-button {
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            background: none;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .close-button:hover {
+            background-color: #f3f4f6;
+        }
+        
+        .modal-content {
+            padding: 1.5rem;
+        }
+        
+        .modal-description {
+            color: #6b7280;
+            margin-bottom: 1rem;
+        }
+        
+        .option-group {
+            margin-bottom: 1rem;
+        }
+        
+        .option-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .option-buttons {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .option-button {
+            flex: 1;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            border: 2px solid #d1d5db;
+            background: none;
+            cursor: pointer;
+        }
+        
+        .option-button.active {
+            border-color: #000;
+            background-color: #000;
+            color: white;
+        }
+        
+        .quantity-control {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            background-color: #f3f4f6;
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .quantity-button {
+            width: 2.5rem;
+            height: 2.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: white;
+            border-radius: 0.5rem;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .quantity-button:hover {
+            background-color: #e5e7eb;
+        }
+        
+        .quantity-display {
+            font-size: 1.5rem;
+            font-weight: bold;
+            width: 3rem;
+            text-align: center;
+        }
+        
+        .comment-area {
+            width: 100%;
+            padding: 1rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            resize: none;
+            margin-bottom: 1rem;
+        }
+        
+        .comment-counter {
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-top: 0.25rem;
+        }
+        
+        .total-section {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            padding: 1rem 0;
+            border-top: 1px solid #e5e7eb;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .total-label {
+            font-size: 1.125rem;
+            font-weight: 600;
+        }
+        
+        .total-amount {
+            font-size: 1.875rem;
+            font-weight: bold;
+        }
+        
+        .add-to-cart-button {
+            width: 100%;
+            background-color: #000;
+            color: white;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .add-to-cart-button:hover {
+            background-color: #374151;
+        }
+        
+        /* Cart */
+        .cart-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 40;
+        }
+        
+        .cart-panel {
+            position: fixed;
+            top: 0;
+            right: 0;
+            height: 100%;
+            width: 100%;
+            background-color: white;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            z-index: 50;
+            transition: transform 0.3s;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        @media (min-width: 768px) {
+            .cart-panel {
+                width: 24rem;
+            }
+        }
+        
+        .cart-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1.5rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .cart-title {
+            font-size: 1.25rem;
+            font-weight: bold;
+        }
+        
+        .empty-cart {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+        }
+        
+        .empty-cart-icon {
+            width: 4rem;
+            height: 4rem;
+            color: #d1d5db;
+            margin-bottom: 1rem;
+        }
+        
+        .empty-cart-text {
+            color: #6b7280;
+            text-align: center;
+        }
+        
+        .cart-items {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+        
+        .cart-item {
+            background-color: #f9fafb;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        .cart-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.5rem;
+        }
+        
+        .cart-item-name {
+            font-weight: bold;
+            flex: 1;
+        }
+        
+        .cart-item-option {
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+        
+        .cart-item-comment {
+            font-size: 0.75rem;
+            color: #6b7280;
+            font-style: italic;
+            margin-top: 0.25rem;
+        }
+        
+        .remove-button {
+            color: #ef4444;
+            padding: 0.25rem;
+            background: none;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .cart-item-controls {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .quantity-control-small {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background-color: white;
+            border-radius: 0.5rem;
+            padding: 0.25rem;
+        }
+        
+        .quantity-button-small {
+            width: 2rem;
+            height: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: none;
+            border: none;
+            cursor: pointer;
+            border-radius: 0.25rem;
+        }
+        
+        .quantity-button-small:hover {
+            background-color: #f3f4f6;
+        }
+        
+        .quantity-display-small {
+            width: 2rem;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .cart-item-price {
+            font-weight: bold;
+        }
+        
+        .cart-footer {
+            border-top: 1px solid #e5e7eb;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .clear-cart {
+            font-size: 0.875rem;
+            color: #ef4444;
+            background: none;
+            border: none;
+            cursor: pointer;
+            text-align: left;
+        }
+        
+        .clear-cart:hover {
+            color: #dc2626;
+        }
+        
+        .cart-total {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 1.25rem;
+            font-weight: bold;
+        }
+        
+        .checkout-button {
+            width: 100%;
+            background-color: #000;
+            color: white;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .checkout-button:hover {
+            background-color: #374151;
+        }
+        
+        /* Sidebar */
+        .sidebar-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 40;
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 20rem;
+            background-color: white;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            z-index: 50;
+            transition: transform 0.3s;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .sidebar-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1.5rem;
+            border-bottom: 1px solid #e5e7eb;
+            background-color: #000;
+            color: white;
+        }
+        
+        .sidebar-logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .sidebar-title {
+            font-size: 1.125rem;
+            font-weight: bold;
+        }
+        
+        .sidebar-subtitle {
+            font-size: 0.75rem;
+            color: #d1d5db;
+        }
+        
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+        }
+        
+        .sidebar-section {
+            margin-bottom: 1.5rem;
+        }
+        
+        .sidebar-section-title {
+            display: flex;
+            align-items: center;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.75rem;
+        }
+        
+        .sidebar-section-icon {
+            width: 1rem;
+            height: 1rem;
+            margin-right: 0.5rem;
+        }
+        
+        .hours-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+        
+        .hours-item {
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .contact-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        
+        .contact-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+        
+        .contact-icon {
+            width: 1rem;
+            height: 1rem;
+        }
+        
+        /* Checkout */
+        .checkout {
+            position: fixed;
+            inset: 0;
+            background-color: white;
+            z-index: 50;
+            overflow-y: auto;
+        }
+        
+        .checkout-container {
+            max-width: 42rem;
+            margin: 0 auto;
+            padding: 1.5rem;
+        }
+        
+        .back-button {
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            color: #6b7280;
+            background: none;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .back-button:hover {
+            color: #000;
+        }
+        
+        .checkout-title {
+            font-size: 1.875rem;
+            font-weight: bold;
+            margin-bottom: 2rem;
+        }
+        
+        .payment-methods {
+            display: grid;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .payment-method {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+            cursor: pointer;
+            background: none;
+        }
+        
+        .payment-method:hover {
+            border-color: #d1d5db;
+        }
+        
+        .payment-method.active {
+            border-color: #000;
+            background-color: #f9fafb;
+        }
+        
+        .payment-icon {
+            margin-right: 1rem;
+        }
+        
+        .payment-info {
+            flex: 1;
+            text-align: left;
+        }
+        
+        .payment-name {
+            font-weight: 600;
+        }
+        
+        .payment-desc {
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+        
+        .checkout-total {
+            background-color: #f9fafb;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .checkout-total-amount {
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.25rem;
+            font-weight: bold;
+        }
+        
+        .confirm-button {
+            width: 100%;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .confirm-button.enabled {
+            background-color: #000;
+            color: white;
+        }
+        
+        .confirm-button.enabled:hover {
+            background-color: #374151;
+        }
+        
+        .confirm-button.disabled {
+            background-color: #d1d5db;
+            color: #9ca3af;
+            cursor: not-allowed;
+        }
+        
+        /* Confirmation */
+        .confirmation {
+            position: fixed;
+            inset: 0;
+            background-color: #000;
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .confirmation-content {
+            text-align: center;
+            color: white;
+            padding: 2rem;
+        }
+        
+        .confirmation-icon {
+            width: 5rem;
+            height: 5rem;
+            background-color: #10b981;
+            border-radius: 9999px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+        }
+        
+        .confirmation-title {
+            font-size: 1.875rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+        }
+        
+        .confirmation-message {
+            color: #d1d5db;
+            margin-bottom: 0.5rem;
+        }
+        
+        .confirmation-note {
+            font-size: 0.875rem;
+            color: #9ca3af;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
-        <Cart isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
-      </div>
-    </CartProvider>
-  );
-};
+    <script type="text/babel">
+        const { useState, useRef, createContext, useContext, useEffect } = React;
+        const { 
+            Menu, X, ShoppingCart, Plus, Minus, ChevronLeft, ChevronRight, 
+            Trash2, CreditCard, DollarSign, Smartphone, Check, Clock, 
+            Phone, Mail, MapPin 
+        } = lucideReact;
 
-export default App
+        // ============= CONTEXTO DEL CARRITO =============
+        const CartContext = createContext();
+
+        const CartProvider = ({ children }) => {
+            const [cart, setCart] = useState([]);
+            const [isOpen, setIsOpen] = useState(false);
+
+            const addToCart = (item, quantity = 1, options = {}) => {
+                const cartItemId = `${item.id}-${JSON.stringify(options)}`;
+                
+                setCart(prev => {
+                    const existingIndex = prev.findIndex(i => i.cartItemId === cartItemId);
+                    if (existingIndex > -1) {
+                        const newCart = [...prev];
+                        newCart[existingIndex].quantity = Math.min(8, newCart[existingIndex].quantity + quantity);
+                        return newCart;
+                    }
+                    return [...prev, { ...item, cartItemId, quantity, options }];
+                });
+            };
+
+            const removeFromCart = (cartItemId) => {
+                setCart(prev => prev.filter(i => i.cartItemId !== cartItemId));
+            };
+
+            const updateQuantity = (cartItemId, newQty) => {
+                if (newQty < 1) return removeFromCart(cartItemId);
+                setCart(prev => prev.map(i => i.cartItemId === cartItemId ? { ...i, quantity: Math.min(8, newQty) } : i));
+            };
+
+            const clearCart = () => setCart([]);
+
+            const getTotal = () => cart.reduce((sum, item) => {
+                const price = item.options?.wineOption === 'glass' ? item.priceGlass : item.price;
+                return sum + (price * item.quantity);
+            }, 0);
+
+            const getTotalItems = () => cart.reduce((sum, item) => sum + item.quantity, 0);
+
+            return React.createElement(CartContext.Provider, {
+                value: { cart, addToCart, removeFromCart, updateQuantity, clearCart, getTotal, getTotalItems, isOpen, setIsOpen }
+            }, children);
+        };
+
+        const useCart = () => useContext(CartContext);
+
+        // ============= DATOS DEL MENÚ =============
+        const menuData = {
+            ENTRADAS: {
+                title: 'ENTRADAS',
+                icon: '🥑',
+                items: [
+                    { id: 'e1', name: 'GUACAMOLE', description: 'Aguacate fresco con jitomate, cebolla y cilantro', price: 88, prepTime: 5, tags: ['vegetariano'] },
+                    { id: 'e2', name: 'CALDO DE HONGOS', description: 'Como recién salido de la montaña, pica un poco', price: 68, prepTime: 10, tags: ['picante'] },
+                    { id: 'e3', name: 'TAMALITOS VERDES', description: 'Dos tamales de pollo en salsa verde, estilo oaxaqueño', price: 68, prepTime: 8, tags: ['oaxaqueño'] },
+                    { id: 'e4', name: 'TACOS MIXTOS', description: 'Son de carne, pollo y hongos. Llevan salsa', price: 88, prepTime: 12, tags: ['mixto'] }
+                ]
+            },
+            PLATILLOS: {
+                title: 'PLATILLOS',
+                icon: '🍽️',
+                items: [
+                    { id: 'p1', name: 'CARNE EN SU JUGO', description: 'Tierna carne de res cocida en su propio jugo con frijoles, tocino y chile', price: 148, prepTime: 20, tags: ['especial'] },
+                    { id: 'p2', name: 'CHAMBARETE', description: 'Ossobuco de res cocinado lentamente en salsa pasilla', price: 188, prepTime: 25, tags: ['recomendado'] },
+                    { id: 'p3', name: 'CORTE MAGRO', description: 'Pregunta por el corte del mes, acompañado de verduras al grill (300g)', price: 251, prepTime: 18, tags: ['premium'] },
+                    { id: 'p4', name: 'ESTOFADO DE RES', description: 'Carne de res cocida a fuego lento (12hrs) con verduras en un rico caldo', price: 168, prepTime: 15, tags: ['tradicional'] },
+                    { id: 'p5', name: 'FAJITAS DE POLLO', description: 'Tiras de pollo asadas con pimientos y cebollas', price: 148, prepTime: 15, tags: ['ligero'] },
+                    { id: 'p6', name: 'TACOS DEL TROMPO', description: 'Tres tacos de sirloin, jugoso y sabroso', price: 125, prepTime: 10, tags: ['popular'] }
+                ]
+            },
+            BEBIDAS: {
+                title: 'BEBIDAS',
+                icon: '🥤',
+                items: [
+                    { id: 'b1', name: 'AGUA DEL DÍA', description: 'Pregunta por el sabor del día', price: 38, prepTime: 2 },
+                    { id: 'b2', name: 'AGUA MINERAL', description: 'LIMONADA | NARANJADA (Natural o mineral)', price: 38, prepTime: 3 },
+                    { id: 'b3', name: 'REFRESCOS', description: 'Coca, manzana, sprite (355ml)', price: 38, prepTime: 1 },
+                    { id: 'b4', name: 'CERVEZA DE BARRIL', description: 'Clara y obscura (355ml)', price: 55, prepTime: 2 }
+                ]
+            },
+            MEZCAL: {
+                title: 'MEZCAL',
+                icon: '🍶',
+                items: [
+                    { id: 'm1', name: 'ESPADÍN 42%', description: 'Ejútla de Crespo, Oaxaca (Doble)', price: 98, prepTime: 2, tags: ['artesanal'] },
+                    { id: 'm2', name: 'TOBALÁ', description: 'San José de Minas, Oaxaca (Doble)', price: 128, prepTime: 2, tags: ['premium'] },
+                    { id: 'm3', name: 'ARROQUEÑO', description: 'Ejútla de Crespo, Oaxaca (Doble)', price: 158, prepTime: 2, tags: ['premium'] }
+                ]
+            },
+            VINO: {
+                title: 'VINO',
+                icon: '🍷',
+                items: [
+                    { id: 'v1', name: 'LA CETTO SYRAH', description: 'Copa | Botella', priceGlass: 138, priceBottle: 488, price: 488, hasGlassOption: true },
+                    { id: 'v2', name: 'DATUM', description: 'Copa | Botella', priceGlass: 218, priceBottle: 888, price: 888, hasGlassOption: true },
+                    { id: 'v3', name: 'MATARROMERA', description: 'Botella', price: 1998, hasGlassOption: false },
+                    { id: 'v4', name: 'TABLAS', description: 'Botella', price: 980, hasGlassOption: false }
+                ]
+            }
+        };
+
+        // ============= COMPONENTE HEADER =============
+        const Header = ({ onMenuClick, onCartClick }) => {
+            const { getTotalItems } = useCart();
+
+            return React.createElement('header', { className: 'header' },
+                React.createElement('div', { className: 'header-content' },
+                    React.createElement('button', { 
+                        onClick: onMenuClick, 
+                        className: 'header-button'
+                    }, React.createElement(Menu, { className: 'w-6 h-6' })),
+                    
+                    React.createElement('div', { className: 'logo-container' },
+                        React.createElement('div', { className: 'logo' }, '🇲🇽'),
+                        React.createElement('div', null,
+                            React.createElement('h1', { className: 'title' }, 'PRODUCTO NACIONAL'),
+                            React.createElement('p', { className: 'subtitle' }, 'Comida & Bebida Nacional')
+                        )
+                    ),
+                    
+                    React.createElement('button', { 
+                        onClick: onCartClick, 
+                        className: 'header-button relative'
+                    },
+                        React.createElement(ShoppingCart, { className: 'w-6 h-6' }),
+                        getTotalItems() > 0 && React.createElement('span', { className: 'cart-badge' }, getTotalItems())
+                    )
+                )
+            );
+        };
+
+        // ============= SIDEBAR =============
+        const Sidebar = ({ isOpen, onClose }) => {
+            return React.createElement(React.Fragment, null,
+                isOpen && React.createElement('div', { 
+                    className: 'sidebar-overlay', 
+                    onClick: onClose 
+                }),
+                
+                React.createElement('aside', { 
+                    className: `sidebar ${isOpen ? 'translate-x-0' : '-translate-x-full'}` 
+                },
+                    React.createElement('div', { className: 'flex flex-col h-full' },
+                        React.createElement('div', { className: 'sidebar-header' },
+                            React.createElement('div', { className: 'sidebar-logo' },
+                                React.createElement('div', { className: 'logo' }, '🇲🇽'),
+                                React.createElement('div', null,
+                                    React.createElement('h2', { className: 'sidebar-title' }, 'PRODUCTO NACIONAL'),
+                                    React.createElement('p', { className: 'sidebar-subtitle' }, 'Menú Digital')
+                                )
+                            ),
+                            React.createElement('button', { 
+                                onClick: onClose, 
+                                className: 'header-button'
+                            }, React.createElement(X, { className: 'w-6 h-6' }))
+                        ),
+                        
+                        React.createElement('nav', { className: 'sidebar-content' },
+                            React.createElement('div', { className: 'sidebar-section' },
+                                React.createElement('h3', { className: 'sidebar-section-title' },
+                                    React.createElement(Clock, { className: 'sidebar-section-icon' }),
+                                    'Horarios'
+                                ),
+                                React.createElement('div', { className: 'hours-list' },
+                                    React.createElement('div', { className: 'hours-item' },
+                                        React.createElement('span', null, 'Lunes - Jueves:'),
+                                        React.createElement('span', null, '13:00 - 23:00')
+                                    ),
+                                    React.createElement('div', { className: 'hours-item' },
+                                        React.createElement('span', null, 'Viernes - Sábado:'),
+                                        React.createElement('span', null, '13:00 - 00:00')
+                                    ),
+                                    React.createElement('div', { className: 'hours-item' },
+                                        React.createElement('span', null, 'Domingo:'),
+                                        React.createElement('span', null, 'Cerrado')
+                                    )
+                                )
+                            ),
+                            
+                            React.createElement('div', { className: 'sidebar-section' },
+                                React.createElement('h3', { className: 'sidebar-section-title' }, 'Contacto'),
+                                React.createElement('div', { className: 'contact-list' },
+                                    React
